@@ -1,0 +1,13 @@
+{
+  "name": "ArabSeed",
+  "author": "drsh-custom",
+  "version": "1.0.0",
+  "moduleID": "arabseed",
+  "description": "ArabSeed anime source",
+  "languages": ["ar"],
+  "website": "https://m1.arabseed.lol",
+  "type": ["anime"],
+  "nsfw": false,
+  "requires": [],
+  "entry": "index.js"
+}
