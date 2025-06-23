@@ -1,13 +1,12 @@
 {
+  "id": "arabseed",
   "name": "ArabSeed",
-  "author": "drsh-custom",
+  "author": "drsh",
   "version": "1.0.0",
-  "moduleID": "arabseed",
-  "description": "ArabSeed anime source",
-  "languages": ["ar"],
-  "website": "https://m1.arabseed.lol",
-  "type": ["anime"],
+  "type": ["movie", "tv", "anime"],
   "nsfw": false,
-  "requires": [],
+  "primaryLanguage": "ar",
+  "url": "https://m1.arabseed.lol",
+  "icon": "",
   "entry": "index.js"
 }
