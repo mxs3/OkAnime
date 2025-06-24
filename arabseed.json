@@ -1,12 +1,7 @@
 {
-  "id": "arabseed",
-  "name": "ArabSeed",
-  "author": "drsh",
+  "name": "Anime Blkom",
+  "description": "Watch anime from blkom.com",
   "version": "1.0.0",
-  "type": ["movie", "tv", "anime"],
-  "nsfw": false,
-  "primaryLanguage": "ar",
-  "url": "https://m1.arabseed.lol",
-  "icon": "",
-  "entry": "index.js"
+  "entry": "index.js",
+  "icon": "https://blkom.com/favicon.ico"
 }
