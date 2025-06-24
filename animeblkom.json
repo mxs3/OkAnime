@@ -1,7 +1,0 @@
-{
-  "name": "Anime Blkom",
-  "description": "Watch anime from blkom.com",
-  "version": "1.0.0",
-  "entry": "index.js",
-  "icon": "https://blkom.com/favicon.ico"
-}
