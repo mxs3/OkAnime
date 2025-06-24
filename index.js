@@ -1,37 +1,18 @@
-export default class Source {
-  constructor() {
-    this.name = "ArabSeed";
-    this.baseUrl = "https://m1.arabseed.lol";
-  }
-
-  async search(query) {
-    const res = await fetch(`${this.baseUrl}/?s=${encodeURIComponent(query)}`);
-    const doc = new DOMParser().parseFromString(await res.text(),"text/html");
-    return Array.from(doc.querySelectorAll("article .movie > a")).map(el=>({
-      title: el.querySelector("h2")?.textContent.trim()|| "",
-      url: el.href,
-      poster: el.querySelector("img")?.src || ""
-    }));
-  }
-
-  async load(url) {
+defineModule({
+  name: 'Anime Blkom',
+  version: '1.0.0',
+  icon: 'https://blkom.com/favicon.ico',
+  async load({ url }) {
     const res = await fetch(url);
-    const doc = new DOMParser().parseFromString(await res.text(),"text/html");
-    const episodes = [];
-    const vids = doc.querySelectorAll(".movurl a");
-    vids.forEach(el=>episodes.push({title: el.textContent.trim(), url: el.href}));
+    const html = await res.text();
+    const match = html.match(/<source\s+src="([^"]+\.mp4)"/i);
+    if (!match) throw new Error('No video found.');
     return {
-      title: doc.querySelector("h1")?.textContent.trim() || "",
-      poster: doc.querySelector(".img-thumbnail")?.src || "",
-      episodes
+      stream: {
+        url: match[1],
+        type: 'mp4',
+        headers: { Referer: 'https://blkom.com' }
+      }
     };
   }
-
-  async play(url) {
-    const res = await fetch(url);
-    const doc = new DOMParser().parseFromString(await res.text(),"text/html");
-    const frame = doc.querySelector("iframe");
-    const videoUrl = frame?.src || "";
-    return {url: videoUrl, isM3U8: videoUrl.includes(".m3u8")};
-  }
-}
+});
