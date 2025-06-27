@@ -12,7 +12,7 @@
   "quality": "1080p - 720p - 360p",
   "baseUrl": "https://shahiid-anime.net/",
   "searchBaseUrl": "https://shahiid-anime.net/anime-search/?q=%s",
-  "scriptUrl": "https://raw.githubusercontent.com/MxS3/sources/main/shahiid-anime/shahiid-anime-clean.js",
+  "scriptUrl": "https://github.com/mxs3/animeblkom/blob/main/shahiid-anime-clean.js",
   "streamAsyncJS": true,
   "type": "anime"
 }
