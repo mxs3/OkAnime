@@ -1,0 +1,18 @@
+{
+  "sourceName": "Shahiid-Anime",
+  "iconUrl": "https://shahiid-anime.net/wp-content/uploads/2023/06/logo.png",
+  "author": {
+    "name": "MxS3",
+    "icon": "https://shahiid-anime.net/wp-content/uploads/2023/06/logo.png",
+    "url": "https://shahiid-anime.net/"
+  },
+  "version": "1.0.0",
+  "language": "Arabic (SUB)",
+  "streamType": "MP4",
+  "quality": "1080p - 720p - 360p",
+  "baseUrl": "https://shahiid-anime.net/",
+  "searchBaseUrl": "https://shahiid-anime.net/anime-search/?q=%s",
+  "scriptUrl": "https://raw.githubusercontent.com/MxS3/sources/main/shahiid-anime/shahiid-anime-clean.js",
+  "streamAsyncJS": true,
+  "type": "anime"
+}
