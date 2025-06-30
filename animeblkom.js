@@ -32,7 +32,7 @@ function extractEpisodes(html) {
     return episodes.reverse();
 }
 
-async function extractStream(url) {
+async function extractStreamUrl(url) {
     const res = await fetch(url);
     const html = await res.text();
     const regex = /data-url="([^"]+)"[^>]*data-server="([^"]+)"/g;
@@ -42,15 +42,15 @@ async function extractStream(url) {
         let streamUrl = match[1].startsWith("http") ? match[1] : "https://animeblkom.com" + match[1];
         let serverRes = await fetch(streamUrl);
         let serverHtml = await serverRes.text();
-        const directLink = serverHtml.match(/source src="([^"]+)"/)?.[1];
-        if (directLink) {
-            streams.push({ name: match[2], url: directLink });
+        const direct = serverHtml.match(/source src="([^"]+)"/)?.[1];
+        if (direct) {
+            streams.push({ name: match[2], url: direct });
         }
     }
     return streams;
 }
 
-export default {
+defineModule({
     name: "AnimeBlkom",
     lang: "ar",
     type: "anime",
@@ -69,6 +69,6 @@ export default {
         return { ...details, episodes };
     },
     watch: async (url) => {
-        return await extractStream(url);
+        return await extractStreamUrl(url);
     }
-}
+});
