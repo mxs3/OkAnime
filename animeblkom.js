@@ -119,7 +119,7 @@ function decodeHTMLEntities(text) {
     return text;
 }
 
-defineModule({
+module.exports = {
     name: "AnimeBlkom",
     lang: "ar",
     type: "anime",
@@ -140,4 +140,4 @@ defineModule({
     watch: async (url) => {
         return await extractStreamUrl(url);
     }
-});
+};
