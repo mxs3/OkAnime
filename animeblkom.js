@@ -1,53 +1,122 @@
 function searchResults(html) {
+    if (typeof html !== 'string') return [];
     const results = [];
-    const regex = /<a[^>]*href="([^"]+)"[^>]*>\s*<div[^>]*class="poster[^>]*>[\s\S]*?<img[^>]*src="([^"]+)"[^>]*>[\s\S]*?<h3[^>]*>(.*?)<\/h3>/g;
-    let match;
-    while ((match = regex.exec(html)) !== null) {
-        results.push({
-            title: match[3].trim(),
-            image: match[2],
-            url: match[1].startsWith("http") ? match[1] : "https://animeblkom.com" + match[1]
-        });
-    }
+    const items = [...html.matchAll(/<a[^>]+class="result[^"]*"[^>]*>[\s\S]*?<\/a>/g)];
+    items.forEach((m) => {
+        const itemHtml = m[0];
+        const titleMatch = itemHtml.match(/<h2[^>]*>(.*?)<\/h2>/);
+        const hrefMatch = itemHtml.match(/href="([^"]+)"/);
+        const imgMatch = itemHtml.match(/<img[^>]*src="([^"]+)"/);
+        const title = titleMatch?.[1]?.trim() ?? '';
+        const href = hrefMatch?.[1]?.trim() ?? '';
+        const image = imgMatch?.[1]?.trim() ?? '';
+        if (title && href) {
+            results.push({
+                title,
+                url: href.startsWith('http') ? href : 'https://animeblkom.com' + href,
+                image
+            });
+        }
+    });
     return results;
 }
 
 function extractDetails(html) {
-    const title = html.match(/<h1[^>]*>(.*?)<\/h1>/)?.[1]?.trim() || "";
-    const description = html.match(/<div[^>]*class="story"[^>]*>\s*<p[^>]*>(.*?)<\/p>/)?.[1]?.trim() || "";
-    const image = html.match(/<div[^>]*class="poster[^>]*>[\s\S]*?<img[^>]*src="([^"]+)"/)?.[1] || "";
-    return { title, description, image };
+    const containerMatch = html.match(/<div class="py-4 flex flex-col gap-2">\s*((?:<p class="[^"]*">[\s\S]*?<\/p>\s*)+)<\/div>/);
+    let description = "";
+    if (containerMatch) {
+        const pBlock = containerMatch[1];
+        const pRegex = /<p class="[^"]*">([\s\S]*?)<\/p>/g;
+        const matches = [...pBlock.matchAll(pRegex)].map(m => m[1].trim()).filter(t => t.length > 0);
+        description = decodeHTMLEntities(matches.join("\n\n"));
+    }
+    const airdateMatch = html.match(/<td[^>]*title="([^"]+)">[^<]+<\/td>/);
+    const airdate = airdateMatch ? airdateMatch[1].trim() : "";
+    const genres = [];
+    const aliasesMatch = html.match(/<div\s+class="flex flex-wrap[^"]+">([\s\S]*?)<\/div>/);
+    const inner = aliasesMatch ? aliasesMatch[1] : "";
+    const anchorRe = /<a[^>]*class="btn btn-md btn-plain !p-0"[^>]*>([^<]+)<\/a>/g;
+    let m;
+    while ((m = anchorRe.exec(inner)) !== null) {
+        genres.push(m[1].trim());
+    }
+    return {
+        title: "",
+        description,
+        genres: genres.join(", "),
+        releaseDate: airdate,
+        image: ""
+    };
 }
 
 function extractEpisodes(html) {
     const episodes = [];
-    const regex = /<a[^>]*href="([^"]+)"[^>]*class="episode"/g;
-    let match;
-    while ((match = regex.exec(html)) !== null) {
-        episodes.push({
-            title: match[1].split("/").pop(),
-            url: match[1].startsWith("http") ? match[1] : "https://animeblkom.com" + match[1]
+    const htmlRegex = /<a\s+[^>]*href="([^"]*?\/episode\/[^"]*?)"[^>]*>[\s\S]*?الحلقة\s+(\d+)[\s\S]*?<\/a>/gi;
+    let matches;
+    if ((matches = html.match(htmlRegex))) {
+        matches.forEach(link => {
+            const hrefMatch = link.match(/href="([^"]+)"/);
+            const numberMatch = link.match(/الحلقة\s+(\d+)/);
+            if (hrefMatch && numberMatch) {
+                const href = hrefMatch[1];
+                const number = numberMatch[1];
+                episodes.push({
+                    title: "الحلقة " + number,
+                    url: href.startsWith('http') ? href : 'https://animeblkom.com' + href
+                });
+            }
         });
     }
-    return episodes.reverse();
+    return episodes;
 }
 
 async function extractStreamUrl(url) {
-    const res = await fetch(url);
-    const html = await res.text();
-    const regex = /data-url="([^"]+)"[^>]*data-server="([^"]+)"/g;
-    const streams = [];
-    let match;
-    while ((match = regex.exec(html)) !== null) {
-        let streamUrl = match[1].startsWith("http") ? match[1] : "https://animeblkom.com" + match[1];
-        let serverRes = await fetch(streamUrl);
-        let serverHtml = await serverRes.text();
-        const direct = serverHtml.match(/source src="([^"]+)"/)?.[1];
-        if (direct) {
-            streams.push({ name: match[2], url: direct });
+    const res = await fetch(url, {
+        headers: {
+            'User-Agent': 'Mozilla/5.0',
+            'Referer': 'https://animeblkom.com/'
         }
+    });
+    const html = await res.text();
+    const serverRegex = /<a[^>]+href="([^"]+)"[^>]*>([^<]+)<\/a>/g;
+    const matches = [...html.matchAll(serverRegex)];
+    for (const m of matches) {
+        const link = m[1];
+        const name = m[2].trim();
+        const full = link.startsWith('http') ? link : 'https://animeblkom.com' + link;
+        const serverRes = await fetch(full, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0',
+                'Referer': 'https://animeblkom.com/'
+            }
+        });
+        const data = await serverRes.text();
+        const blkomM = data.match(/var\s+videos\s*=\s*(\[[\s\S]*?\]);/);
+        if (blkomM) {
+            const qs = [...blkomM[1].matchAll(/\{\s*src:\s*'([^']+)'\s*[^}]*label:\s*'([^']*)'/g)];
+            const arr = [];
+            qs.forEach(q => arr.push({ quality: q[2], url: q[1] }));
+            return arr;
+        }
+        const iM = data.match(/<iframe[^>]+src="([^"]+)"/i);
+        if (iM) return [{ name, url: iM[1], type: 'external' }];
     }
-    return streams;
+    return [];
+}
+
+function decodeHTMLEntities(text) {
+    text = text.replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec));
+    const entities = {
+        '&quot;': '"',
+        '&amp;': '&',
+        '&apos;': "'",
+        '&lt;': '<',
+        '&gt;': '>'
+    };
+    for (const entity in entities) {
+        text = text.replace(new RegExp(entity, 'g'), entities[entity]);
+    }
+    return text;
 }
 
 defineModule({
