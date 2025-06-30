@@ -5,13 +5,18 @@ function searchResults(html) {
     }
 
     const results = [];
+    const patterns = [
+        /<div[^>]*class="[^"]*(?:anime|post|item|card)[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
+        /<article[^>]*>[\s\S]*?<\/article>/gi,
+        /<a[^>]*href="[^"]*anime[^"]*"[^>]*>[\s\S]*?<\/a>/gi,
+        /<div[^>]*class="[^"]*"[^>]*>[\s\S]*?<img[^>]*>[\s\S]*?<\/div>/gi
+    ];
 
-    const titleRegex = /<h2[^>]*>(.*?)<\/h2>/;
-    const hrefRegex = /<a\s+href="([^"]+)"\s*[^>]*>/;
-    const imgRegex = /<img[^>]*src="([^"]+)"[^>]*>/;
-
-    const itemRegex = /<div class="my-2 w-64[^"]*"[^>]*>[\s\S]*?<\/div>\s*<\/div>\s*<\/div>/g;
-    const items = html.match(itemRegex) || [];
+    let items = [];
+    for (const pattern of patterns) {
+        items = html.match(pattern) || [];
+        if (items.length > 0) break;
+    }
 
     items.forEach((itemHtml, index) => {
         try {
@@ -20,69 +25,125 @@ function searchResults(html) {
                 return;
             }
 
-            const titleMatch = itemHtml.match(titleRegex);
-            const title = titleMatch?.[1]?.trim() ?? '';
+            const titlePatterns = [
+                /<h[1-6][^>]*>(.*?)<\/h[1-6]>/i,
+                /<title[^>]*>(.*?)<\/title>/i,
+                /<[^>]*title="([^"]+)"/i,
+                /<[^>]*alt="([^"]+)"/i,
+                />([^<]+)</
+            ];
 
-            const hrefMatch = itemHtml.match(hrefRegex);
+            let title = '';
+            for (const pattern of titlePatterns) {
+                const match = itemHtml.match(pattern);
+                if (match && match[1] && match[1].trim()) {
+                    title = match[1].trim();
+                    break;
+                }
+            }
+
+            const hrefMatch = itemHtml.match(/<a[^>]*href="([^"]+)"/i);
             const href = hrefMatch?.[1]?.trim() ?? '';
 
-            const imgMatch = itemHtml.match(imgRegex);
+            const imgMatch = itemHtml.match(/<img[^>]*src="([^"]+)"/i);
             const imageUrl = imgMatch?.[1]?.trim() ?? '';
 
             if (title && href) {
                 results.push({
                     title: decodeHTMLEntities(title),
                     image: imageUrl,
-                    href: href
+                    href: href.startsWith('http') ? href : `https://www.animeblkom.com${href}`
                 });
-            } else {
-                console.error(`Missing title or href in item ${index}`);
             }
         } catch (err) {
             console.error(`Error processing item ${index}:`, err);
         }
     });
 
+    console.log(`Found ${results.length} search results`);
     return results;
 }
 
 function extractDetails(html) {
     const details = [];
-
-    const containerMatch = html.match(/<div class="py-4 flex flex-col gap-2">\s*((?:<p class="sm:text-\[1\.04rem\] leading-loose text-justify">[\s\S]*?<\/p>\s*)+)<\/div>/);
-
     let description = "";
-    if (containerMatch) {
-        const pBlock = containerMatch[1];
-
-        const pRegex = /<p class="sm:text-\[1\.04rem\] leading-loose text-justify">([\s\S]*?)<\/p>/g;
-        const matches = [...pBlock.matchAll(pRegex)]
-            .map(m => m[1].trim())
-            .filter(text => text.length > 0);
-
-        description = decodeHTMLEntities(matches.join("\n\n"));
-    }
-
-    const airdateMatch = html.match(/<td[^>]*title="([^"]+)">[^<]+<\/td>/);
-    let airdate = airdateMatch ? airdateMatch[1].trim() : "";
-
+    let airdate = "";
     const genres = [];
-    const aliasesMatch = html.match(
-        /<div\s+class="flex flex-wrap gap-2 lg:gap-4 text-sm sm:text-\[\.94rem\] -mt-2 mb-4">([\s\S]*?)<\/div>/
-    );
-    const inner = aliasesMatch ? aliasesMatch[1] : "";
 
-    const anchorRe = /<a[^>]*class="btn btn-md btn-plain !p-0"[^>]*>([^<]+)<\/a>/g;
-    let m;
-    while ((m = anchorRe.exec(inner)) !== null) {
-        genres.push(m[1].trim());
+    const descriptionPatterns = [
+        /<div class="py-4 flex flex-col gap-2">\s*((?:<p class="sm:text-\[1\.04rem\] leading-loose text-justify">[\s\S]*?<\/p>\s*)+)<\/div>/,
+        /<div[^>]*class="[^"]*description[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+        /<div[^>]*class="[^"]*summary[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+        /<p[^>]*class="[^"]*description[^"]*"[^>]*>([\s\S]*?)<\/p>/i,
+        /<div[^>]*class="[^"]*content[^"]*"[^>]*>[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/i
+    ];
+
+    for (const pattern of descriptionPatterns) {
+        const match = html.match(pattern);
+        if (match) {
+            if (pattern === descriptionPatterns[0]) {
+                const pBlock = match[1];
+                const pRegex = /<p class="sm:text-\[1\.04rem\] leading-loose text-justify">([\s\S]*?)<\/p>/g;
+                const matches = [...pBlock.matchAll(pRegex)]
+                    .map(m => m[1].trim())
+                    .filter(text => text.length > 0);
+                description = decodeHTMLEntities(matches.join("\n\n"));
+            } else {
+                description = decodeHTMLEntities(match[1].trim());
+            }
+            if (description) break;
+        }
     }
 
-    if (description && airdate) {
+    const airdatePatterns = [
+        /<td[^>]*title="([^"]+)">[^<]+<\/td>/,
+        /<span[^>]*class="[^"]*date[^"]*"[^>]*>([^<]+)<\/span>/i,
+        /<div[^>]*class="[^"]*year[^"]*"[^>]*>([^<]+)<\/div>/i,
+        /تاريخ\s*[:\-]?\s*([^<\n]+)/i,
+        /البث\s*[:\-]?\s*([^<\n]+)/i
+    ];
+
+    for (const pattern of airdatePatterns) {
+        const match = html.match(pattern);
+        if (match && match[1]) {
+            airdate = match[1].trim();
+            break;
+        }
+    }
+
+    const genrePatterns = [
+        /<div\s+class="flex flex-wrap gap-2 lg:gap-4 text-sm sm:text-\[\.94rem\] -mt-2 mb-4">([\s\S]*?)<\/div>/,
+        /<div[^>]*class="[^"]*genre[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+        /<div[^>]*class="[^"]*category[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+        /<div[^>]*class="[^"]*tag[^"]*"[^>]*>([\s\S]*?)<\/div>/i
+    ];
+
+    for (const pattern of genrePatterns) {
+        const match = html.match(pattern);
+        if (match) {
+            const inner = match[1];
+            const anchorPatterns = [
+                /<a[^>]*class="btn btn-md btn-plain !p-0"[^>]*>([^<]+)<\/a>/g,
+                /<a[^>]*>([^<]+)<\/a>/g,
+                /<span[^>]*>([^<]+)<\/span>/g
+            ];
+
+            for (const anchorPattern of anchorPatterns) {
+                let m;
+                while ((m = anchorPattern.exec(inner)) !== null) {
+                    genres.push(m[1].trim());
+                }
+                if (genres.length > 0) break;
+            }
+            if (genres.length > 0) break;
+        }
+    }
+
+    if (description || airdate || genres.length > 0) {
         details.push({
-            description: description,
-            aliases: genres.join(", "),
-            airdate: airdate,
+            description: description || "غير متوفر",
+            aliases: genres.join(", ") || "غير محدد",
+            airdate: airdate || "غير محدد",
         });
     }
 
