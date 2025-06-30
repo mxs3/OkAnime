@@ -1,21 +1,15 @@
 function searchResults(html) {
     const results = [];
-    const itemRegex = /<div class="my-2 w-64[^"]*"[^>]*>[\s\S]*?<\/div>\s*<\/div>\s*<\/div>/g;
-    const items = html.match(itemRegex) || [];
+    const cardRegex = /<a[^>]+href="([^"]+)"[^>]*class="result[^"]*"[^>]*>[\s\S]*?<img[^>]+src="([^"]+)"[^>]*>[\s\S]*?<h2[^>]*>(.*?)<\/h2>/g;
+    let match;
 
-    items.forEach((itemHtml) => {
-        const titleMatch = itemHtml.match(/<h2[^>]*>(.*?)<\/h2>/);
-        const hrefMatch = itemHtml.match(/<a\s+href="([^"]+)"\s*[^>]*>/);
-        const imgMatch = itemHtml.match(/<img[^>]*src="([^"]+)"[^>]*>/);
-
-        const title = decodeHTMLEntities(titleMatch?.[1]?.trim() ?? '');
-        const href = hrefMatch?.[1]?.trim() ?? '';
-        const image = imgMatch?.[1]?.trim() ?? '';
-
-        if (title && href) {
-            results.push({ title, href, image });
-        }
-    });
+    while ((match = cardRegex.exec(html)) !== null) {
+        results.push({
+            href: match[1].startsWith("http") ? match[1] : `https://animeblkom.com${match[1]}`,
+            image: match[2],
+            title: decodeHTMLEntities(match[3].trim())
+        });
+    }
 
     return results;
 }
