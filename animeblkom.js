@@ -6,10 +6,10 @@ function searchResults(html) {
 
     const results = [];
 
-    const itemRegex = /<div class="anime-card-container[^"]*"[^>]*>[\s\S]*?<\/div>\s*<\/div>/g;
-    const titleRegex = /<h3[^>]*>(.*?)<\/h3>/;
-    const hrefRegex = /<a\s+href="([^"]+)"\s*[^>]*class="[^"]*anime-card-title[^"]*"[^>]*>/;
-    const imgRegex = /<img[^>]*src="([^"]+)"[^>]*class="[^"]*anime-card-poster[^"]*"[^>]*>/;
+    const itemRegex = /<div class="card-anime[^"]*"[^>]*>[\s\S]*?</div>/g;
+    const titleRegex = /<h3[^>]*class="[^"]*title[^"]*"[^>]*>(.*?)<\/h3>/;
+    const hrefRegex = /<a\s+href="([^"]+)"\s*[^>]*class="[^"]*card-anime-title[^"]*"[^>]*>/;
+    const imgRegex = /<img[^>]*src="([^"]+)"[^>]*class="[^"]*card-anime-image[^"]*"[^>]*>/;
 
     const items = html.match(itemRegex) || [];
 
@@ -32,7 +32,7 @@ function searchResults(html) {
             if (title && href) {
                 results.push({
                     title: decodeHTMLEntities(title),
-                    image: imageUrl,
+                    image: imageUrl || 'غير متوفر',
                     href: href
                 });
             } else {
@@ -43,13 +43,14 @@ function searchResults(html) {
         }
     });
 
+    console.log('Search Results:', results);
     return results;
 }
 
 function extractDetails(html) {
     const details = [];
 
-    const containerMatch = html.match(/<div class="story[^"]*"[^>]*>\s*((?:<p[^>]*>[\s\S]*?<\/p>\s*)+)<\/div>/);
+    const containerMatch = html.match(/<div class="story[^"]*"[^>]*>\s*((?:<p[^>]*>[\s\S]*?</p>\s*)+)</div>/);
 
     let description = "";
     if (containerMatch) {
@@ -62,7 +63,7 @@ function extractDetails(html) {
         description = decodeHTMLEntities(matches.join("\n\n"));
     }
 
-    const airdateMatch = html.match(/<div[^>]*class="[^"]*info-item[^"]*"[^>]*>\s*تاريخ الإصدار\s*:\s*([^<]+)<\/div>/);
+    const airdateMatch = html.match(/<div[^>]*class="[^"]*info-item[^"]*"[^>]*>\s*تاريخ الإصدار\s*:\s*([^<]+)</div>/);
     let airdate = airdateMatch ? airdateMatch[1].trim() : "";
 
     const genres = [];
@@ -82,13 +83,13 @@ function extractDetails(html) {
         });
     }
 
-    console.log(details);
+    console.log('Details:', details);
     return details;
 }
 
 function extractEpisodes(html) {
     const episodes = [];
-    const htmlRegex = /<a\s+[^>]*href="([^"]*?\/episode\/[^"]*?)"[^>]*class="[^"]*episode-link[^"]*"[^>]*>[\s\S]*?الحلقة\s+(\d+)[\s\S]*?<\/a>/gi;
+    const htmlRegex = /<a\s+[^>]*href="([^"]*?\/watch\/[^"]*?)"[^>]*class="[^"]*episodes-card[^"]*"[^>]*>[\s\S]*?الحلقة\s+(\d+)[\s\S]*?</a>/gi;
 
     let matches;
     if ((matches = html.match(htmlRegex))) {
@@ -106,15 +107,18 @@ function extractEpisodes(html) {
         });
     }
 
-    console.log(episodes);
+    console.log('Episodes:', episodes);
     return episodes;
 }
 
 async function extractStreamUrl(html) {
     try {
-        const sourceMatch = html.match(/data-video-source="([^"]+)"/);
+        const sourceMatch = html.match(/data-source="([^"]+)"/);
         let embedUrl = sourceMatch?.[1]?.replace(/&/g, '&');
-        if (!embedUrl) return null;
+        if (!embedUrl) {
+            console.error('No video source found');
+            return null;
+        }
 
         const response = await fetch(embedUrl);
         const data = await response.text();
@@ -128,9 +132,9 @@ async function extractStreamUrl(html) {
         let nextEpNum, nextDuration, nextSubtitle;
         if (currentEp !== null) {
             const episodeRegex = new RegExp(
-                `<a[^>]+href="[^"]+\/episode\/[^\/]+\/(\\d+)"[\\s\\S]*?` +
-                `<span[^>]*class="[^"]*episode-title[^"]*"[^>]*>([^<]+)<\\/span>[\\s\\S]*?` +
-                `<p[^>]*class="[^"]*episode-subtitle[^"]*"[^>]*>([^<]+)<\\/p>`,
+                `<a[^>]+href="[^"]+\/watch\/[^\/]+\/(\\d+)"[\\s\\S]*?` +
+                `<span[^>]*class="[^"]*ep-title[^"]*"[^>]*>([^<]+)<\\/span>[\\s\\S]*?` +
+                `<p[^>]*class="[^"]*ep-subtitle[^"]*"[^>]*>([^<]+)<\\/p>`,
                 'g'
             );
             let m;
@@ -154,17 +158,20 @@ async function extractStreamUrl(html) {
             streams: qualities,
         };
 
-        console.log(JSON.stringify(result));
+        console.log('Stream URL Result:', JSON.stringify(result));
         return JSON.stringify(result);
     } catch (err) {
-        console.error(err);
+        console.error('Error in extractStreamUrl:', err);
         return null;
     }
 }
 
 function extractQualities(html) {
-    const match = html.match(/var\s+videos\s*=\s*(\[[\s\S]*?\]);/);
-    if (!match) return [];
+    const match = html.match(/var\s+sources\s*=\s*(\[[\s\S]*?\]);/);
+    if (!match) {
+        console.error('No sources array found');
+        return [];
+    }
 
     const raw = match[1];
     const regex = /\{\s*src:\s*'([^']+)'\s*[^}]*label:\s*'([^']*)'/g;
@@ -175,6 +182,7 @@ function extractQualities(html) {
         list.push(m[2], m[1]);
     }
 
+    console.log('Qualities:', list);
     return list;
 }
 
@@ -182,12 +190,12 @@ function decodeHTMLEntities(text) {
     text = text.replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec));
 
     const entities = {
-        '&quot;': '"',
-        '&amp;': '&',
-        '&apos;': "'",
-        '&lt;': '<',
-        '&gt;': '>',
-        '&nbsp;': ' '
+        '"': '"',
+        '&': '&',
+        ''': "'",
+        '<': '<',
+        '>': '>',
+        ' ': ' '
     };
 
     for (const entity in entities) {
