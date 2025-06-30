@@ -12,7 +12,7 @@
   "quality": "1080p",
   "baseUrl": "https://www.animeblkom.com",
   "searchBaseUrl": "https://www.animeblkom.com/search?keyword=%s",
-  "scriptUrl": "https://raw.githubusercontent.com/MxS3Dev/sources/main/animeblkom/animeblkom.js",
+  "scriptUrl": "https://raw.githubusercontent.com/mxs3/shahid-anime/refs/heads/main/animeblkom.js",
   "type": "anime",
   "asyncJS": true
 }
