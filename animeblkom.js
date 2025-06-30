@@ -89,7 +89,7 @@ function extractDetails(html) {
 
 function extractEpisodes(html) {
     const episodes = [];
-    const htmlRegex = /<a\s+[^>]*href="([^"]*?\/watch\/[^"]*?)"[^>]*class="[^"]*episodes-card[^"]*"[^>]*>[\s\S]*?الحلقة\s+(\d+)[\s\S]*?</a>/gi;
+    const htmlRegex = /<a\s+[^>]*href="([^"]*?\/watch\/[^"]*?)"[^>]*class="[^"]*episodes-card[^"]*"[^>]*>[\s\S]*?الحلقة\s+(\d+)[\s\S]*?</a>/g;
 
     let matches;
     if ((matches = html.match(htmlRegex))) {
@@ -131,12 +131,7 @@ async function extractStreamUrl(html) {
 
         let nextEpNum, nextDuration, nextSubtitle;
         if (currentEp !== null) {
-            const episodeRegex = new RegExp(
-                `<a[^>]+href="[^"]+\/watch\/[^\/]+\/(\\d+)"[\\s\\S]*?` +
-                `<span[^>]*class="[^"]*ep-title[^"]*"[^>]*>([^<]+)<\\/span>[\\s\\S]*?` +
-                `<p[^>]*class="[^"]*ep-subtitle[^"]*"[^>]*>([^<]+)<\\/p>`,
-                'g'
-            );
+            const episodeRegex = /<a[^>]+href="[^"]+\/watch\/[^\/]+\/(\d+)"[\s\S]*?<span[^>]*class="[^"]*ep-title[^"]*"[^>]*>([^<]+)<\/span>[\s\S]*?<p[^>]*class="[^"]*ep-subtitle[^"]*"[^>]*>([^<]+)<\/p>/g;
             let m;
             while ((m = episodeRegex.exec(html)) !== null) {
                 const num = Number(m[1]);
