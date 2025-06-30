@@ -1,13 +1,14 @@
+const proxy = "https://animeblkom-cf-proxy.mxs.workers.dev/proxy/";
+
 async function searchResults(keyword) {
     try {
         const url = `https://www.animeblkom.com/search?keyword=${encodeURIComponent(keyword)}`;
-        const res = await fetchv2(url);
+        const res = await fetchv2(proxy + encodeURIComponent(url));
         const html = await res.text();
 
         const results = [];
-        const regex = /<a class="anime-card" href="([^"]+)"[^>]*>\s*<div class="anime-img">\s*<img[^>]+src="([^"]+)"[^>]+alt="([^"]+)"/g;
+        const regex = /<a class="anime-card" href="([^"]+)"[^>]*>[\s\S]*?<img[^>]+src="([^"]+)"[^>]+alt="([^"]+)"/g;
         let match;
-
         while ((match = regex.exec(html)) !== null) {
             results.push({
                 title: decodeHTMLEntities(match[3]),
@@ -25,7 +26,7 @@ async function searchResults(keyword) {
 
 async function extractDetails(url) {
     try {
-        const res = await fetchv2(url);
+        const res = await fetchv2(proxy + encodeURIComponent(url));
         const html = await res.text();
 
         const descriptionMatch = html.match(/<div class="anime-story">\s*<p>(.*?)<\/p>/s);
@@ -40,11 +41,11 @@ async function extractDetails(url) {
 
 async function extractEpisodes(url) {
     try {
-        const res = await fetchv2(url);
+        const res = await fetchv2(proxy + encodeURIComponent(url));
         const html = await res.text();
 
         const episodes = [];
-        const epRegex = /<a class="episode" href="([^"]+)"[^>]*>\s*<div[^>]*>.*?الحلقة\s*(\d+)/g;
+        const epRegex = /<a[^>]+href="([^"]+)"[^>]*class="episode"[^>]*>\s*<div[^>]*>.*?الحلقة\s*(\d+)/g;
         let match;
         while ((match = epRegex.exec(html)) !== null) {
             episodes.push({
@@ -62,17 +63,17 @@ async function extractEpisodes(url) {
 
 async function extractStreamUrl(url) {
     try {
-        const res = await fetchv2(url);
+        const res = await fetchv2(proxy + encodeURIComponent(url));
         const html = await res.text();
 
         const streams = [];
 
-        // BlkomPlayer (internal mp4)
-        const internalMatch = html.match(/<source\s+src="([^"]+\.mp4)"\s+type="video\/mp4">/);
-        if (internalMatch) {
+        // BlkomPlayer
+        const mp4Match = html.match(/<source\s+src="([^"]+\.mp4)"\s+type="video\/mp4">/);
+        if (mp4Match) {
             streams.push({
                 title: "BlkomPlayer",
-                streamUrl: internalMatch[1],
+                streamUrl: mp4Match[1],
                 headers: { Referer: url },
                 subtitles: null
             });
@@ -82,30 +83,23 @@ async function extractStreamUrl(url) {
         const serverRegex = /data-id="([^"]+)"\s+data-type="([^"]+)"\s+data-server="([^"]+)"/g;
         let match;
         while ((match = serverRegex.exec(html)) !== null) {
-            const id = match[1];
-            const type = match[2];
-            const server = match[3];
-
+            const [_, id, type, server] = match;
             const body = `id=${id}&type=${type}`;
             const headers = {
                 "Content-Type": "application/x-www-form-urlencoded",
                 "Referer": url
             };
 
-            try {
-                const ajaxRes = await fetchv2("https://www.animeblkom.com/ajax/watch", headers, "POST", body);
-                const json = await ajaxRes.json();
+            const ajaxRes = await fetchv2(proxy + encodeURIComponent("https://www.animeblkom.com/ajax/watch"), headers, "POST", body);
+            const json = await ajaxRes.json();
 
-                if (json.embed_url) {
-                    streams.push({
-                        title: server,
-                        streamUrl: json.embed_url,
-                        headers: { Referer: url },
-                        subtitles: null
-                    });
-                }
-            } catch (e) {
-                console.log(`Error fetching stream from server ${server}:`, e);
+            if (json.embed_url) {
+                streams.push({
+                    title: server,
+                    streamUrl: json.embed_url,
+                    headers: { Referer: url },
+                    subtitles: null
+                });
             }
         }
 
