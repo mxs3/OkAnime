@@ -1,6 +1,9 @@
 async function searchResults(keyword) {
     const searchUrl = `https://www.animeblkom.com/search?keyword=${encodeURIComponent(keyword)}`;
-    const res = await fetchv2(searchUrl);
+    const headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/114.0 Safari/537.36"
+    };
+    const res = await fetchv2(searchUrl, headers);
     const html = await res.text();
 
     const results = [];
@@ -54,8 +57,7 @@ async function extractStreamUrl(url) {
     const iframeSrc = iframeMatch ? iframeMatch[1] : "";
 
     if (!iframeSrc) {
-        console.log("No iframe found, might be Blkom internal player.");
-        const mp4Match = html.match(/<source src="([^"]+\\.mp4)"[^>]*>/);
+        const mp4Match = html.match(/<source src="([^"]+\.mp4)"[^>]*>/);
         if (mp4Match) {
             return JSON.stringify({
                 stream: mp4Match[1],
@@ -78,6 +80,6 @@ function decodeHTMLEntities(text) {
         '&lt;': '<',
         '&gt;': '>'
     };
-    return text.replace(/&#(\\d+);/g, (_, dec) => String.fromCharCode(dec))
+    return text.replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(dec))
                .replace(/&(quot|amp|apos|lt|gt);/g, (match) => entities[match] || match);
 }
