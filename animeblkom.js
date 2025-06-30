@@ -1,114 +1,74 @@
 function searchResults(html) {
     const results = [];
-    const cardRegex = /<a[^>]+href="([^"]+)"[^>]*class="result[^"]*"[^>]*>[\s\S]*?<img[^>]+src="([^"]+)"[^>]*>[\s\S]*?<h2[^>]*>(.*?)<\/h2>/g;
+    const regex = /<a[^>]*href="([^"]+)"[^>]*>\s*<div[^>]*class="poster[^>]*>[\s\S]*?<img[^>]*src="([^"]+)"[^>]*>[\s\S]*?<h3[^>]*>(.*?)<\/h3>/g;
     let match;
-
-    while ((match = cardRegex.exec(html)) !== null) {
+    while ((match = regex.exec(html)) !== null) {
         results.push({
-            href: match[1].startsWith("http") ? match[1] : `https://animeblkom.com${match[1]}`,
+            title: match[3].trim(),
             image: match[2],
-            title: decodeHTMLEntities(match[3].trim())
+            url: match[1].startsWith("http") ? match[1] : "https://animeblkom.com" + match[1]
         });
     }
-
     return results;
 }
 
 function extractDetails(html) {
-    const details = [];
-
-    const description = (() => {
-        const container = html.match(/<div class="py-4 flex flex-col gap-2">([\s\S]*?)<\/div>/);
-        if (!container) return '';
-        return [...container[1].matchAll(/<p[^>]*>([\s\S]*?)<\/p>/g)]
-            .map(m => decodeHTMLEntities(m[1].trim()))
-            .join('\n\n');
-    })();
-
-    const airdate = (html.match(/<td[^>]*title="([^"]+)">[^<]+<\/td>/) || [])[1]?.trim() ?? '';
-
-    const aliases = (() => {
-        const div = html.match(/<div\s+class="flex flex-wrap[^"]+">([\s\S]*?)<\/div>/);
-        if (!div) return '';
-        const anchorRe = /<a[^>]*class="btn btn-md btn-plain !p-0"[^>]*>([^<]+)<\/a>/g;
-        return [...div[1].matchAll(anchorRe)].map(m => m[1].trim()).join(', ');
-    })();
-
-    if (description && airdate) {
-        details.push({ description, airdate, aliases });
-    }
-
-    return details;
+    const title = html.match(/<h1[^>]*>(.*?)<\/h1>/)?.[1]?.trim() || "";
+    const description = html.match(/<div[^>]*class="story"[^>]*>\s*<p[^>]*>(.*?)<\/p>/)?.[1]?.trim() || "";
+    const image = html.match(/<div[^>]*class="poster[^>]*>[\s\S]*?<img[^>]*src="([^"]+)"/)?.[1] || "";
+    return { title, description, image };
 }
 
 function extractEpisodes(html) {
     const episodes = [];
-    const episodeRegex = /<a\s+[^>]*href="([^"]*?\/episode\/[^"]*?)"[^>]*>[\s\S]*?الحلقة\s+(\d+)[\s\S]*?<\/a>/gi;
+    const regex = /<a[^>]*href="([^"]+)"[^>]*class="episode"/g;
     let match;
-    while ((match = episodeRegex.exec(html)) !== null) {
-        episodes.push({ href: match[1], number: match[2] });
+    while ((match = regex.exec(html)) !== null) {
+        episodes.push({
+            title: match[1].split("/").pop(),
+            url: match[1].startsWith("http") ? match[1] : "https://animeblkom.com" + match[1]
+        });
     }
-    return episodes;
+    return episodes.reverse();
 }
 
-async function extractStreamUrl(html) {
-    try {
-        const serverRegex = /<a[^>]+href="([^"]+)"[^>]*>([^<]+)<\/a>/g;
-        const matches = [...html.matchAll(serverRegex)];
-
-        for (const match of matches) {
-            const link = match[1];
-            const name = match[2].trim();
-            const fullUrl = link.startsWith("http") ? link : `https://animeblkom.com${link}`;
-
-            const response = await fetchv2(fullUrl, {
-                headers: {
-                    "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1",
-                    Referer: "https://animeblkom.com"
-                }
-            });
-
-            const data = await response.text();
-
-            const blkomMatch = data.match(/var\s+videos\s*=\s*(\[[\s\S]*?\]);/);
-            if (blkomMatch) {
-                const qualities = extractQualities(data);
-                return JSON.stringify({ server: name, streams: qualities });
-            }
-
-            const iframeSrc = data.match(/<iframe[^>]+src="([^"]+)"/i);
-            if (iframeSrc) {
-                return JSON.stringify({ server: name, url: iframeSrc[1], type: "external" });
-            }
+async function extractStream(url) {
+    const res = await fetch(url);
+    const html = await res.text();
+    const regex = /data-url="([^"]+)"[^>]*data-server="([^"]+)"/g;
+    const streams = [];
+    let match;
+    while ((match = regex.exec(html)) !== null) {
+        let streamUrl = match[1].startsWith("http") ? match[1] : "https://animeblkom.com" + match[1];
+        let serverRes = await fetch(streamUrl);
+        let serverHtml = await serverRes.text();
+        const directLink = serverHtml.match(/source src="([^"]+)"/)?.[1];
+        if (directLink) {
+            streams.push({ name: match[2], url: directLink });
         }
-
-        return null;
-    } catch (err) {
-        return null;
     }
+    return streams;
 }
 
-function extractQualities(html) {
-    const match = html.match(/var\s+videos\s*=\s*(\[[\s\S]*?\]);/);
-    if (!match) return [];
-    const raw = match[1];
-    const regex = /\{\s*src:\s*'([^']+)'\s*[^}]*label:\s*'([^']*)'/g;
-
-    const list = [];
-    let m;
-    while ((m = regex.exec(raw)) !== null) {
-        list.push(m[2], m[1]);
+export default {
+    name: "AnimeBlkom",
+    lang: "ar",
+    type: "anime",
+    author: "MxS3",
+    version: "1.0.0",
+    search: async (query) => {
+        const res = await fetch(`https://animeblkom.com/search?query=${encodeURIComponent(query)}`);
+        const html = await res.text();
+        return searchResults(html);
+    },
+    extract: async (url) => {
+        const res = await fetch(url);
+        const html = await res.text();
+        const details = extractDetails(html);
+        const episodes = extractEpisodes(html);
+        return { ...details, episodes };
+    },
+    watch: async (url) => {
+        return await extractStream(url);
     }
-
-    return list;
-}
-
-function decodeHTMLEntities(text) {
-    text = text.replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(dec));
-    return text
-        .replace(/&quot;/g, '"')
-        .replace(/&amp;/g, '&')
-        .replace(/&apos;/g, "'")
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>');
 }
