@@ -12,7 +12,7 @@
   "quality": "Multi",
   "baseUrl": "https://ww1.animeiat.tv",
   "searchBaseUrl": "https://ww1.animeiat.tv/?s=%s",
-  "scriptUrl": "https://raw.githubusercontent.com/mxs3/animeiat/main/animeiat.js",
+  "scriptUrl": "https://raw.githubusercontent.com/mxs3/animeblkom/refs/heads/main/animeiat.js",
   "type": "anime",
   "asyncJS": true
 }
