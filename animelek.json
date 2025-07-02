@@ -1,0 +1,18 @@
+{
+  "sourceName": "AnimeLek",
+  "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=animelek.vip",
+  "author": {
+    "name": "MxS3",
+    "icon": "",
+    "url": "https://github.com/MxS3"
+  },
+  "version": "1.0.0",
+  "language": "Arabic (SUB)",
+  "streamType": "mp4",
+  "quality": "Multi",
+  "baseUrl": "https://eg.megamax.cam",
+  "searchBaseUrl": "https://animelek.vip/?s=%s",
+  "scriptUrl": "https://raw.githubusercontent.com/mxs3/animeblkom/refs/heads/main/animelek.js",
+  "type": "anime",
+  "asyncJS": true
+}
