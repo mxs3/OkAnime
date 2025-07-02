@@ -1,222 +1,101 @@
-function searchResults(html) {
-    if (typeof html !== 'string') {
-        console.error('Invalid HTML input: expected a string.');
-        return [];
-    }
-
-    const results = [];
-
-    const titleRegex = /<h2[^>]*>(.*?)<\/h2>/;
-    const hrefRegex = /<a\s+href="([^"]+)"\s*[^>]*>/;
-    const imgRegex = /<img[^>]*src="([^"]+)"[^>]*>/;
-
-    const itemRegex = /<div class="my-2 w-64[^"]*"[^>]*>[\s\S]*?<\/div>\s*<\/div>\s*<\/div>/g;
-    const items = html.match(itemRegex) || [];
-
-    items.forEach((itemHtml, index) => {
-        try {
-            if (typeof itemHtml !== 'string') {
-                console.error(`Item ${index} is not a string.`);
-                return;
-            }
-
-            const titleMatch = itemHtml.match(titleRegex);
-            const title = titleMatch?.[1]?.trim() ?? '';
-
-            const hrefMatch = itemHtml.match(hrefRegex);
-            const href = hrefMatch?.[1]?.trim() ?? '';
-
-            const imgMatch = itemHtml.match(imgRegex);
-            const imageUrl = imgMatch?.[1]?.trim() ?? '';
-
-            if (title && href) {
-                results.push({
-                    title: decodeHTMLEntities(title),
-                    image: imageUrl,
-                    href: href
-                });
-            } else {
-                console.error(`Missing title or href in item ${index}`);
-            }
-        } catch (err) {
-            console.error(`Error processing item ${index}:`, err);
-        }
-    });
-
-    return results;
-}
-
-
-function extractDetails(html) {
-    const details = [];
-
-    const containerMatch = html.match(/<div class="py-4 flex flex-col gap-2">\s*((?:<p class="sm:text-\[1\.04rem\] leading-loose text-justify">[\s\S]*?<\/p>\s*)+)<\/div>/);
-
-    let description = "";
-    if (containerMatch) {
-        const pBlock = containerMatch[1];
-
-        const pRegex = /<p class="sm:text-\[1\.04rem\] leading-loose text-justify">([\s\S]*?)<\/p>/g;
-        const matches = [...pBlock.matchAll(pRegex)]
-            .map(m => m[1].trim())
-            .filter(text => text.length > 0);
-
-        description = decodeHTMLEntities(matches.join("\n\n"));
-    }
-
-    const airdateMatch = html.match(/<td[^>]*title="([^"]+)">[^<]+<\/td>/);
-    let airdate = airdateMatch ? airdateMatch[1].trim() : "";
-
-    const genres = [];
-    const aliasesMatch = html.match(
-        /<div\s+class="flex flex-wrap gap-2 lg:gap-4 text-sm sm:text-\[\.94rem\] -mt-2 mb-4">([\s\S]*?)<\/div>/
-    );
-    const inner = aliasesMatch ? aliasesMatch[1] : "";
-
-    const anchorRe = /<a[^>]*class="btn btn-md btn-plain !p-0"[^>]*>([^<]+)<\/a>/g;
-    let m;
-    while ((m = anchorRe.exec(inner)) !== null) {
-        genres.push(m[1].trim());
-    }
-
-    if (description && airdate) {
-        details.push({
-            description: description,
-            aliases: genres.join(", "),
-            airdate: airdate,
-        });
-    }
-
-    console.log(details);
-    return details;
-}
-
-
-function extractEpisodes(html) {
-    const episodes = [];
-    const htmlRegex = /<a\s+[^>]*href="([^"]*?\/episode\/[^"]*?)"[^>]*>[\s\S]*?الحلقة\s+(\d+)[\s\S]*?<\/a>/gi;
-    const plainTextRegex = /الحلقة\s+(\d+)/g;
-
-    let matches;
-
-    if ((matches = html.match(htmlRegex))) {
-        matches.forEach(link => {
-            const hrefMatch = link.match(/href="([^"]+)"/);
-            const numberMatch = link.match(/الحلقة\s+(\d+)/);
-            if (hrefMatch && numberMatch) {
-                const href = hrefMatch[1];
-                const number = numberMatch[1];
-                episodes.push({
-                    href: href,
-                    number: number
-                });
-            }
-        });
-    } 
-    else if ((matches = html.match(plainTextRegex))) {
-        matches.forEach(match => {
-            const numberMatch = match.match(/\d+/);
-            if (numberMatch) {
-                episodes.push({
-                    href: null, 
-                    number: numberMatch[0]
-                });
-            }
-        });
-    }
-
-    console.log(episodes);
-    return episodes;
-}
-
-
-async function extractStreamUrl(html) {
-    try {
-        const sourceMatch = html.match(/data-video-source="([^"]+)"/);
-        let embedUrl = sourceMatch?.[1]?.replace(/&amp;/g, '&');
-        if (!embedUrl) return null;
-
-        const cinemaMatch = html.match(/url\.searchParams\.append\(\s*['"]cinema['"]\s*,\s*(\d+)\s*\)/);
-        const lastMatch = html.match(/url\.searchParams\.append\(\s*['"]last['"]\s*,\s*(\d+)\s*\)/);
-        const cinemaNum = cinemaMatch ? cinemaMatch[1] : undefined;
-        const lastNum = lastMatch ? lastMatch[1] : undefined;
-
-        if (cinemaNum) embedUrl += `&cinema=${cinemaNum}`;
-        if (lastNum) embedUrl += `&last=${lastNum}`;
-        embedUrl += `&next-image=undefined`;
-
-        const response = await fetchv2(embedUrl);
-        const data = await response.text();
-
-        const qualities = extractQualities(data);
-
-        const epMatch = html.match(/<title>[^<]*الحلقة\s*(\d+)[^<]*<\/title>/);
-        const currentEp = epMatch ? Number(epMatch[1]) : null;
-
-        let nextEpNum, nextDuration, nextSubtitle;
-        if (currentEp !== null) {
-            const episodeRegex = new RegExp(
-                `<a[^>]+href="[^"]+/episode/[^/]+/(\\d+)"[\\s\\S]*?` +
-                `<span[^>]*>([^<]+)<\\/span>[\\s\\S]*?` +
-                `<p[^>]*>([^<]+)<\\/p>`,
-                'g'
-            );
-            let m;
-            while ((m = episodeRegex.exec(html)) !== null) {
-                const num = Number(m[1]);
-                if (num > currentEp) {
-                    nextEpNum = num;
-                    nextDuration = m[2].trim();
-                    nextSubtitle = m[3].trim();
-                    break;
-                }
-            }
-        }
-
-        if (nextEpNum != null) {
-            embedUrl += `&next-title=${encodeURIComponent(nextDuration)}`;
-            embedUrl += `&next-sub-title=${encodeURIComponent(nextSubtitle)}`;
-        }
-
-        return JSON.stringify({ streams: qualities });
-
-    } catch (err) {
-        console.error(err);
-        return null;
-    }
-}
-
-
-function extractQualities(html) {
-    const match = html.match(/var\s+videos\s*=\s*(\[[\s\S]*?\]);/);
-    if (!match) return [];
-
-    const raw = match[1];
-    const regex = /\{\s*src:\s*'([^']+)'\s*[^}]*label:\s*'([^']*)'/g;
-    const list = [];
-    let m;
-
-    while ((m = regex.exec(raw)) !== null) {
-        list.push(m[2], m[1]);
-    }
-
-    return list;
+function defineModule({ meta, search, fetchAnime, fetchEpisodeSources }) {
+  return { meta, search, fetchAnime, fetchEpisodeSources };
 }
 
 function decodeHTMLEntities(text) {
-    text = text.replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec));
+  text = text.replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(dec));
+  const entities = {
+    '&quot;': '"', '&amp;': '&', '&apos;': "'", '&lt;': '<', '&gt;': '>'
+  };
+  for (const [entity, char] of Object.entries(entities)) {
+    text = text.replace(new RegExp(entity, 'g'), char);
+  }
+  return text;
+}
 
-    const entities = {
-        '&quot;': '"',
-        '&amp;': '&',
-        '&apos;': "'",
-        '&lt;': '<',
-        '&gt;': '>'
-    };
+function extractQualities(html) {
+  const match = html.match(/var\s+videos\s*=\s*(\[[\s\S]*?\]);/);
+  if (!match) return [];
+  const regex = /\{\s*src:\s*'([^']+)'\s*[^}]*label:\s*'([^']*)'/g;
+  const list = [];
+  let m;
+  while ((m = regex.exec(match[1])) !== null) {
+    list.push(m[2], m[1]);
+  }
+  return list;
+}
 
-    for (const entity in entities) {
-        text = text.replace(new RegExp(entity, 'g'), entities[entity]);
+export default defineModule({
+  meta: {
+    name: 'Animeiat',
+    version: '1.0.0',
+    author: 'MxS3',
+    url: 'https://ww1.animeiat.tv',
+    icon: 'https://www.google.com/s2/favicons?sz=64&domain=animeiat.tv',
+  },
+
+  async search(query) {
+    const res = await fetch(`https://ww1.animeiat.tv/?s=${encodeURIComponent(query)}`);
+    const html = await res.text();
+    const results = [];
+    const regex = /<div class="post-thumb">[\s\S]*?<a href="(.*?)">[\s\S]*?<img src="(.*?)"[\s\S]*?<h3 class="post-title">(.*?)<\/h3>/g;
+    let match;
+    while ((match = regex.exec(html)) !== null) {
+      results.push({
+        id: match[1],
+        title: decodeHTMLEntities(match[3].trim()),
+        image: match[2],
+      });
+    }
+    return results;
+  },
+
+  async fetchAnime(url) {
+    const res = await fetch(url);
+    const html = await res.text();
+    const titleMatch = html.match(/<h1[^>]*>(.*?)<\/h1>/);
+    const title = titleMatch ? decodeHTMLEntities(titleMatch[1].trim()) : 'Unknown title';
+
+    const episodes = [];
+    const epRegex = /<a\s+[^>]*href="([^"]*?\/episode\/[^"]*?)"[^>]*>[\s\S]*?الحلقة\s+(\d+)[\s\S]*?<\/a>/gi;
+    let match;
+    while ((match = epRegex.exec(html)) !== null) {
+      episodes.push({
+        id: match[1],
+        title: `الحلقة ${match[2]}`,
+      });
     }
 
-    return text;
-}
+    return { title, episodes };
+  },
+
+  async fetchEpisodeSources(episodeUrl) {
+    const res = await fetch(episodeUrl);
+    const html = await res.text();
+
+    const sourceMatch = html.match(/data-video-source="([^"]+)"/);
+    let embedUrl = sourceMatch?.[1]?.replace(/&amp;/g, '&');
+    if (!embedUrl) return [];
+
+    const cinemaMatch = html.match(/url\.searchParams\.append\(\s*['"]cinema['"]\s*,\s*(\d+)\s*\)/);
+    const lastMatch = html.match(/url\.searchParams\.append\(\s*['"]last['"]\s*,\s*(\d+)\s*\)/);
+    const cinemaNum = cinemaMatch ? cinemaMatch[1] : undefined;
+    const lastNum = lastMatch ? lastMatch[1] : undefined;
+
+    if (cinemaNum) embedUrl += `&cinema=${cinemaNum}`;
+    if (lastNum) embedUrl += `&last=${lastNum}`;
+    embedUrl += `&next-image=undefined`;
+
+    const embedRes = await fetch(embedUrl);
+    const embedHtml = await embedRes.text();
+    const qualities = extractQualities(embedHtml);
+
+    return [
+      {
+        name: 'Animeiat Player',
+        type: 'mp4',
+        qualities: qualities,
+      }
+    ];
+  }
+});
