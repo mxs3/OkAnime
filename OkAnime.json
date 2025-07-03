@@ -1,0 +1,17 @@
+{
+  "sourceName": "Okanime",
+  "iconUrl": "https://raw.githubusercontent.com/mxs3/okanime/main/okanime.png",
+  "author": {
+    "name": "MxS3",
+    "icon": "https://avatars.githubusercontent.com/u/162128369?v=4"
+  },
+  "version": "1.0.0",
+  "language": "Arabic (SUB)",
+  "streamType": "MP4",
+  "quality": "1080p - 720p - 360p - 480p",
+  "baseUrl": "https://ok.okanime.xyz/",
+  "searchBaseUrl": "https://ok.okanime.xyz/search?q=%s",
+  "scriptUrl": "https://raw.githubusercontent.com/mxs3/okanime/main/okanime.js",
+  "asyncJS": true,
+  "type": "anime"
+}
